@@ -1,19 +1,21 @@
 <!DOCTYPE html>
-<html lang="en" >
+<html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>animeserc</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="./mine.jpg" type="image/jpg">
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#6366f1" />
+
   <script>
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
         .then(() => console.log('Service Worker registered'))
         .catch(err => console.error('Service Worker registration failed:', err));
     }
-   </script>
+  </script>
 
   <style>
     @keyframes fadeInUp {
@@ -26,153 +28,108 @@
       to {opacity:1; transform:scale(1);}
     }
     .scale-in { animation: scaleIn 0.3s ease-out; }
-
-    /* Modal scroll and layout tweaks */
-    #modal {
-      /* Prevent background scrolling when modal is open */
-      overflow-y: auto;
-      padding: 1.5rem;
-    }
-    #modalContent {
-      max-height: 80vh; /* max 80% viewport height */
-      overflow-y: auto;
-    }
   </style>
 </head>
 <body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100 min-h-screen flex flex-col">
-  
+
   <!-- Header -->
-  <header class="text-center py-8 fade-in-up">
-    <div id="logoContainer" class="mb-4"></div>
-    <h1 class="text-4xl font-extrabold text-indigo-400 tracking-wider">animeserc</h1>
-    <p class="text-gray-400 mt-2">Search anime by title, context, image or filter by genres</p>
+  <header class="text-center py-6 fade-in-up">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-indigo-400 tracking-wide">animeserc</h1>
+    <p class="text-gray-400 mt-1 text-sm sm:text-base">Search anime by title, context, image or filter by genres</p>
   </header>
-  
+
   <!-- Genre Selection -->
-  <section class="max-w-3xl w-full mx-auto px-4 fade-in-up mb-6">
-    <h3 class="text-indigo-400 text-xl font-semibold mb-3">Filter by Genre</h3>
-    <div id="genreSelection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 bg-gray-800 bg-opacity-70 p-4 rounded-2xl shadow-lg backdrop-blur-md">
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Action" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Action</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Adventure" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Adventure</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Comedy" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Comedy</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Drama" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Drama</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Fantasy" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Fantasy</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Horror" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Horror</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Mystery" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Mystery</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Romance" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Romance</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Sci-Fi" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Sci-Fi</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Slice of Life" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Slice of Life</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Sports" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Sports</span>
-      </label>
-      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
-        <input type="checkbox" name="genres" value="Thriller" class="form-checkbox h-5 w-5 text-indigo-500"/>
-        <span>Thriller</span>
-      </label>
+  <section class="max-w-4xl w-full mx-auto px-4 fade-in-up mb-6">
+    <h3 class="text-indigo-400 text-lg sm:text-xl font-semibold mb-3">Filter by Genre</h3>
+    <div id="genreSelection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3 bg-gray-800 bg-opacity-70 p-3 sm:p-4 rounded-2xl shadow-lg backdrop-blur-md">
+      <!-- Example Genre -->
+      <template id="genreTemplate">
+        <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+          <input type="checkbox" name="genres" value="" class="form-checkbox h-4 w-4 sm:h-5 sm:w-5 text-indigo-500"/>
+          <span class="text-xs sm:text-sm"></span>
+        </label>
+      </template>
+      <!-- Static Genres -->
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Action" class="text-indigo-500"><span>Action</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Adventure" class="text-indigo-500"><span>Adventure</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Comedy" class="text-indigo-500"><span>Comedy</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Drama" class="text-indigo-500"><span>Drama</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Fantasy" class="text-indigo-500"><span>Fantasy</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Horror" class="text-indigo-500"><span>Horror</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Mystery" class="text-indigo-500"><span>Mystery</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Romance" class="text-indigo-500"><span>Romance</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Sci-Fi" class="text-indigo-500"><span>Sci-Fi</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Slice of Life" class="text-indigo-500"><span>Slice of Life</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Sports" class="text-indigo-500"><span>Sports</span></label>
+      <label class="flex items-center space-x-2"><input type="checkbox" value="Thriller" class="text-indigo-500"><span>Thriller</span></label>
     </div>
   </section>
 
   <!-- Search Section -->
-  <section class="max-w-3xl w-full mx-auto px-4 fade-in-up">
-    <div class="flex gap-3 bg-gray-800 bg-opacity-70 p-3 rounded-2xl shadow-lg backdrop-blur-md transition-all hover:shadow-indigo-500/20">
+  <section class="max-w-4xl w-full mx-auto px-4 fade-in-up">
+    <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 bg-gray-800 bg-opacity-70 p-3 rounded-2xl shadow-lg backdrop-blur-md">
       <input id="textInput" placeholder="🔍 Search anime..." 
-             class="flex-grow p-3 rounded-xl bg-gray-900 bg-opacity-50 focus:ring-2 focus:ring-indigo-400 outline-none transition"/>
-      <button id="searchBtn" 
-              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl transition transform hover:scale-105">Search</button>
-      <label class="px-5 py-2 bg-green-600 hover:bg-green-700 rounded-xl cursor-pointer transition transform hover:scale-105">
-        Upload<input id="fileInput" type="file" accept="image/*" class="hidden"/>
-      </label>
+             class="flex-grow p-2 sm:p-3 rounded-xl bg-gray-900 bg-opacity-50 focus:ring-2 focus:ring-indigo-400 outline-none text-sm sm:text-base"/>
+      <div class="flex gap-2">
+        <button id="searchBtn" 
+                class="w-full sm:w-auto px-4 sm:px-5 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl transition text-sm sm:text-base">Search</button>
+        <label class="w-full sm:w-auto px-4 sm:px-5 py-2 bg-green-600 hover:bg-green-700 rounded-xl cursor-pointer text-center text-sm sm:text-base">
+          Upload<input id="fileInput" type="file" accept="image/*" class="hidden"/>
+        </label>
+      </div>
     </div>
   </section>
 
   <!-- Main Content -->
-  <main class="flex-grow max-w-4xl w-full mx-auto px-4 mt-8 space-y-8">
+  <main class="flex-grow max-w-5xl w-full mx-auto px-4 mt-6 space-y-6">
     <!-- Results -->
     <section>
-      <h2 class="text-2xl font-bold text-indigo-300 mb-3">Results</h2>
+      <h2 class="text-xl sm:text-2xl font-bold text-indigo-300 mb-2">Results</h2>
       <div id="results" class="space-y-4"></div>
     </section>
 
     <!-- History -->
     <section>
-      <h2 class="text-2xl font-bold text-indigo-300 mb-3">Recent Searches</h2>
-      <ul id="history" class="list-disc list-inside text-gray-400"></ul>
+      <h2 class="text-xl sm:text-2xl font-bold text-indigo-300 mb-2">Recent Searches</h2>
+      <ul id="history" class="list-disc list-inside text-gray-400 text-sm sm:text-base"></ul>
     </section>
 
     <!-- Favorites -->
     <section>
-      <h2 class="text-2xl font-bold text-indigo-300 mb-3">Favorites</h2>
-      <ul id="favorites" class="list-disc list-inside text-gray-400"></ul>
+      <h2 class="text-xl sm:text-2xl font-bold text-indigo-300 mb-2">Favorites</h2>
+      <ul id="favorites" class="list-disc list-inside text-gray-400 text-sm sm:text-base"></ul>
     </section>
   </main>
 
   <!-- Details Modal -->
-  <div id="modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50">
-    <div 
-      id="modalContentWrapper" 
-      class="bg-gray-800 p-6 rounded-2xl max-w-xl w-full mx-4 relative scale-in max-h-[90vh] overflow-hidden"
-    >
-      <button id="modalClose" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl">✕</button>
-      <div id="modalContent" class="space-y-4 text-gray-300 overflow-y-auto max-h-[80vh]"></div>
+  <div id="modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center z-50 p-4">
+    <div id="modalContentWrapper" class="bg-gray-800 p-4 sm:p-6 rounded-2xl w-full max-w-2xl relative scale-in max-h-[90vh] flex flex-col">
+      <button id="modalClose" class="absolute top-3 right-3 text-gray-400 hover:text-white text-lg sm:text-2xl">✕</button>
+      <div id="modalContent" class="overflow-y-auto max-h-[80vh] space-y-4 text-gray-300 text-sm sm:text-base"></div>
     </div>
   </div>
 
   <!-- Footer -->
-  <footer class="text-center text-gray-500 text-sm py-4">
-    Made with ❤️ by animeserc — 
+  <footer class="text-center text-gray-500 text-xs sm:text-sm py-4">
+    Made with ❤️ by animeserc —
     <a href="https://deltashift.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline">
       developed by deltashift
     </a>
   </footer>
 
+  <!-- Scripts -->
   <script src="./app.js"></script>
   <script>
-    // Modal open/close handlers
-    
     const modal = document.getElementById('modal');
     const modalContentWrapper = document.getElementById('modalContentWrapper');
     const modalCloseBtn = document.getElementById('modalClose');
 
-    // Function to open modal (example usage)
     function openModal(contentHTML) {
       document.getElementById('modalContent').innerHTML = contentHTML;
       modal.classList.remove('hidden');
-      // Prevent body scroll while modal is open
       document.body.style.overflow = 'hidden';
     }
 
-    // Close modal function
     function closeModal() {
       modal.classList.add('hidden');
       document.body.style.overflow = '';
@@ -180,19 +137,7 @@
     }
 
     modalCloseBtn.addEventListener('click', closeModal);
-
-    // Close modal when clicking outside modal content
-    modal.addEventListener('click', (e) => {
-      // If click target is the modal overlay itself (outside modal content)
-      if (e.target === modal) {
-        closeModal();
-      }
-    });
-
-    // Example: For testing, open modal after 1 second with dummy content
-    // setTimeout(() => {
-    //   openModal('<h3 class="text-xl font-bold">Modal Title</h3><p>This is scrollable modal content.<br/>'.repeat(30));
-    // }, 1000);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
   </script>
 
 </body>
