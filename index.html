@@ -1,160 +1,199 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" >
 <head>
-  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AnimeSearcher</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>animeserc</title>
   <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-900 text-gray-100">
-  <div class="max-w-3xl mx-auto p-6">
-    <!-- Header -->
-    <header class="text-center mb-8">
-      <h1 class="text-4xl font-bold text-indigo-400">AnimeSearcher</h1>
-      <p class="mt-2 text-gray-400">Search by title, description, or screenshot</p>
-    </header>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#6366f1" />
+  <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+        .then(() => console.log('Service Worker registered'))
+        .catch(err => console.error('Service Worker registration failed:', err));
+    }
+   </script>
 
-    <!-- Search Controls -->
-    <div class="flex gap-4 mb-6">
-      <input id="textInput" type="text" placeholder="Search by title or context…" class="flex-grow p-2 rounded bg-gray-800" />
-      <button id="searchBtn" class="px-4 bg-indigo-600 hover:bg-indigo-700 rounded">Search</button>
-      <label class="px-4 bg-green-600 hover:bg-green-700 rounded cursor-pointer">
-        Upload Image<input id="fileInput" type="file" accept="image/*" class="hidden" />
+  <style>
+    @keyframes fadeInUp {
+      from {opacity:0; transform:translateY(20px);}
+      to {opacity:1; transform:translateY(0);}
+    }
+    .fade-in-up { animation: fadeInUp 0.5s ease-out; }
+    @keyframes scaleIn {
+      from {opacity:0; transform:scale(0.9);}
+      to {opacity:1; transform:scale(1);}
+    }
+    .scale-in { animation: scaleIn 0.3s ease-out; }
+
+    /* Modal scroll and layout tweaks */
+    #modal {
+      /* Prevent background scrolling when modal is open */
+      overflow-y: auto;
+      padding: 1.5rem;
+    }
+    #modalContent {
+      max-height: 80vh; /* max 80% viewport height */
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100 min-h-screen flex flex-col">
+  
+  <!-- Header -->
+  <header class="text-center py-8 fade-in-up">
+    <div id="logoContainer" class="mb-4"></div>
+    <h1 class="text-4xl font-extrabold text-indigo-400 tracking-wider">animeserc</h1>
+    <p class="text-gray-400 mt-2">Search anime by title, context, image or filter by genres</p>
+  </header>
+  
+  <!-- Genre Selection -->
+  <section class="max-w-3xl w-full mx-auto px-4 fade-in-up mb-6">
+    <h3 class="text-indigo-400 text-xl font-semibold mb-3">Filter by Genre</h3>
+    <div id="genreSelection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 bg-gray-800 bg-opacity-70 p-4 rounded-2xl shadow-lg backdrop-blur-md">
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Action" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Action</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Adventure" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Adventure</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Comedy" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Comedy</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Drama" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Drama</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Fantasy" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Fantasy</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Horror" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Horror</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Mystery" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Mystery</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Romance" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Romance</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Sci-Fi" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Sci-Fi</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Slice of Life" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Slice of Life</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Sports" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Sports</span>
+      </label>
+      <label class="flex items-center space-x-2 cursor-pointer hover:text-indigo-300 transition">
+        <input type="checkbox" name="genres" value="Thriller" class="form-checkbox h-5 w-5 text-indigo-500"/>
+        <span>Thriller</span>
       </label>
     </div>
+  </section>
 
+  <!-- Search Section -->
+  <section class="max-w-3xl w-full mx-auto px-4 fade-in-up">
+    <div class="flex gap-3 bg-gray-800 bg-opacity-70 p-3 rounded-2xl shadow-lg backdrop-blur-md transition-all hover:shadow-indigo-500/20">
+      <input id="textInput" placeholder="🔍 Search anime..." 
+             class="flex-grow p-3 rounded-xl bg-gray-900 bg-opacity-50 focus:ring-2 focus:ring-indigo-400 outline-none transition"/>
+      <button id="searchBtn" 
+              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl transition transform hover:scale-105">Search</button>
+      <label class="px-5 py-2 bg-green-600 hover:bg-green-700 rounded-xl cursor-pointer transition transform hover:scale-105">
+        Upload<input id="fileInput" type="file" accept="image/*" class="hidden"/>
+      </label>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <main class="flex-grow max-w-4xl w-full mx-auto px-4 mt-8 space-y-8">
     <!-- Results -->
-    <div id="results"></div>
+    <section>
+      <h2 class="text-2xl font-bold text-indigo-300 mb-3">Results</h2>
+      <div id="results" class="space-y-4"></div>
+    </section>
 
     <!-- History -->
-    <section class="mt-8">
-      <h2 class="text-2xl mb-2">Recent Searches</h2>
+    <section>
+      <h2 class="text-2xl font-bold text-indigo-300 mb-3">Recent Searches</h2>
       <ul id="history" class="list-disc list-inside text-gray-400"></ul>
     </section>
 
     <!-- Favorites -->
-    <section class="mt-4">
-      <h2 class="text-2xl mb-2">Favorites</h2>
+    <section>
+      <h2 class="text-2xl font-bold text-indigo-300 mb-3">Favorites</h2>
       <ul id="favorites" class="list-disc list-inside text-gray-400"></ul>
     </section>
+  </main>
+
+  <!-- Details Modal -->
+  <div id="modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50">
+    <div 
+      id="modalContentWrapper" 
+      class="bg-gray-800 p-6 rounded-2xl max-w-xl w-full mx-4 relative scale-in max-h-[90vh] overflow-hidden"
+    >
+      <button id="modalClose" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl">✕</button>
+      <div id="modalContent" class="space-y-4 text-gray-300 overflow-y-auto max-h-[80vh]"></div>
+    </div>
   </div>
 
-<script>
-const resultsEl = document.getElementById('results');
-const historyEl = document.getElementById('history');
-const favEl = document.getElementById('favorites');
-const textInput = document.getElementById('textInput');
-const searchBtn = document.getElementById('searchBtn');
-const fileInput = document.getElementById('fileInput');
+  <!-- Footer -->
+  <footer class="text-center text-gray-500 text-sm py-4">
+    Made with ❤️ by animeserc — 
+    <a href="https://deltashift.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline">
+      developed by deltashift
+    </a>
+  </footer>
 
-let history = JSON.parse(getCookie('history') || '[]');
-let favs = JSON.parse(getCookie('favs') || '[]');
+  <script src="./app.js"></script>
+  <script>
+    // Modal open/close handlers
+    
+    const modal = document.getElementById('modal');
+    const modalContentWrapper = document.getElementById('modalContentWrapper');
+    const modalCloseBtn = document.getElementById('modalClose');
 
-renderHistory();
-renderFavs();
+    // Function to open modal (example usage)
+    function openModal(contentHTML) {
+      document.getElementById('modalContent').innerHTML = contentHTML;
+      modal.classList.remove('hidden');
+      // Prevent body scroll while modal is open
+      document.body.style.overflow = 'hidden';
+    }
 
-searchBtn.addEventListener('click', () => {
-  const q = textInput.value.trim();
-  if (!q) return;
-  pushHistory(q);
-  searchByText(q);
-});
+    // Close modal function
+    function closeModal() {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      document.getElementById('modalContent').innerHTML = '';
+    }
 
-fileInput.addEventListener('change', () => {
-  const f = fileInput.files?.[0];
-  if (!f) return;
-  pushHistory('[IMAGE]');
-  searchByImage(f);
-});
+    modalCloseBtn.addEventListener('click', closeModal);
 
-function pushHistory(q) {
-  history = [q, ...history.filter(x=>x!==q)].slice(0,10);
-  setCookie('history', JSON.stringify(history), 365);
-  renderHistory();
-}
-
-function pushFav(a) {
-  if (!favs.find(x=>x.mal_id===a.mal_id)) {
-    favs.push(a);
-    setCookie('favs', JSON.stringify(favs), 365);
-    renderFavs();
-  }
-}
-
-function renderHistory() {
-  historyEl.innerHTML = history.map(h=>`<li>${h}</li>`).join('');
-}
-function renderFavs() {
-  favEl.innerHTML = favs.map(a=>`<li>${a.titles[0]}</li>`).join('');
-}
-
-async function searchByText(q) {
-  resultsEl.innerHTML = `<p class="text-gray-400 animate-pulse">Searching…</p>`;
-  const resp = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=5`);
-  const j = await resp.json();
-  const list = j.data.map(d => ({
-    mal_id: d.mal_id,
-    titles: [d.title, d.title_english].filter(Boolean),
-    synopsis: d.synopsis,
-    episodes: d.episodes,
-    status: d.status,
-    score: d.score,
-    start_date: d.aired?.from,
-    end_date: d.aired?.to,
-    trailer: d.trailer?.youtube_id? `https://www.youtube.com/watch?v=${d.trailer.youtube_id}`:'',
-    image_url: d.images.jpg.image_url
-  }));
-  showResults(list);
-}
-
-async function searchByImage(file) {
-  resultsEl.innerHTML = `<p class="text-gray-400 animate-pulse">Analyzing image…</p>`;
-  const form = new FormData();
-  form.append('image', file);
-  const resp = await fetch(`https://api.trace.moe/search?anilistInfo`, {method:'POST', body:form});
-  const j = await resp.json();
-  if(!j.result?.length) {
-    resultsEl.innerHTML = `<p class="text-red-500">No match found.</p>`;
-    return;
-  }
-  const top = j.result[0];
-  const malResp = await fetch(`https://api.jikan.moe/v4/anime/${top.anilist.id}`);
-  const dm = await malResp.json();
-  await searchByText(dm.data.title);
-}
-
-function showResults(items) {
-  resultsEl.innerHTML = items.map(a => `
-    <div class="bg-gray-800 rounded p-4 mb-4 flex gap-4">
-      <img src="${a.image_url}" alt="cover" class="w-24 h-32 object-cover rounded"/>
-      <div class="flex-grow">
-        <h3 class="text-xl text-indigo-400">${a.titles[0]}</h3>
-        <p class="text-gray-300">${a.synopsis?.substring(0,200)}…</p>
-        <div class="mt-2 space-x-2 text-gray-400">
-          <span>Episodes: ${a.episodes}</span>
-          <span>Status: ${a.status}</span>
-          <span>Score: ${a.score}</span>
-        </div>
-        ${a.trailer ? `<a href="${a.trailer}" target="_blank" class="mt-2 inline-block text-indigo-300">Watch Trailer</a>` : ''}
-        <button class="ml-4 text-red-400 hover:text-red-600" data-id="${a.mal_id}">❤ Favorite</button>
-      </div>
-    </div>
-  `).join('');
-  resultsEl.querySelectorAll('button[data-id]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = parseInt(btn.dataset.id);
-      const ani = items.find(x=>x.mal_id===id);
-      if(ani) pushFav(ani);
+    // Close modal when clicking outside modal content
+    modal.addEventListener('click', (e) => {
+      // If click target is the modal overlay itself (outside modal content)
+      if (e.target === modal) {
+        closeModal();
+      }
     });
-  });
-}
 
-function setCookie(n,v,days) {
-  document.cookie = `${n}=${encodeURIComponent(v)}; max-age=${days*86400}; path=/`;
-}
-function getCookie(n) {
-  const m = document.cookie.match('(?:^|; )'+n+'=([^;]*)');
-  return m ? decodeURIComponent(m[1]) : '';
-}
-</script>
+    // Example: For testing, open modal after 1 second with dummy content
+    // setTimeout(() => {
+    //   openModal('<h3 class="text-xl font-bold">Modal Title</h3><p>This is scrollable modal content.<br/>'.repeat(30));
+    // }, 1000);
+  </script>
+
 </body>
 </html>
