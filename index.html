@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device‑width,initial‑scale=1" />
+  <title>AnimeSearcher</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module" src="./main.ts" defer></script>
+</head>
+<body class="bg-gray-900 text-gray-100">
+  <div class="max-w-3xl mx-auto p-6">
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-indigo-400">AnimeSearcher</h1>
+      <p class="mt-2 text-gray-400">Search by title, description, or screenshot</p>
+    </header>
+
+    <div class="flex gap-4 mb-6">
+      <input id="textInput" type="text" placeholder="Search by title or context…" class="flex-grow p-2 rounded bg-gray-800" />
+      <button id="searchBtn" class="px-4 bg-indigo-600 hover:bg-indigo-700 rounded">Search</button>
+      <label class="px-4 bg-green-600 hover:bg-green-700 rounded cursor-pointer">
+        Upload Image<input id="fileInput" type="file" accept="image/*" class="hidden" />
+      </label>
+    </div>
+
+    <div id="results"></div>
+
+    <section class="mt-8">
+      <h2 class="text-2xl mb-2">Recent Searches</h2>
+      <ul id="history" class="list-disc list-inside text-gray-400"></ul>
+    </section>
+    <section class="mt-4">
+      <h2 class="text-2xl mb-2">Favorites</h2>
+      <ul id="favorites" class="list-disc list-inside text-gray-400"></ul>
+    </section>
+  </div>
+</body>
+</html>
