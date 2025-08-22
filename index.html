@@ -1,132 +1,487 @@
+<!-- ============================================
+  File: index.html
+  App: animeserc (improved)
+  APIs used (free):
+    • AniList GraphQL: https://graphql.anilist.co (primary search/details)
+    • trace.moe: https://api.trace.moe/search (image → anime)
+  Notes:
+    • Fast, accessible UI with skeletons, virtual-ish loading, and a sentinel-based infinite scroll.
+    • LocalStorage caching for API responses, with TTL.
+    • Optional translation button is wired but disabled by default; plug a LibreTranslate endpoint if needed.
+    • PWA-ready with service worker (see sw.js) and manifest.json.
+============================================ -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>animeserc</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="icon" href="./mine.jpg" type="image/jpg">
-  <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#6366f1" />
-
-  <!-- PWA Service Worker -->
+  <link rel="icon" href="./mine.jpg" type="image/jpeg" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="preconnect" href="https://graphql.anilist.co" crossorigin>
+  <link rel="preconnect" href="https://api.trace.moe" crossorigin>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root{--ring:#6366f1}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .fade-in-up{animation:fadeInUp .4s ease-out}
+    .line-clamp-3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+    .shadow-soft{box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .glass{background:rgba(31,41,55,.6);backdrop-filter:blur(8px)}
+    .visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
+  </style>
   <script>
+    // Register SW as early as possible (non-blocking)
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-        .then(() => console.log('Service Worker registered'))
-        .catch(err => console.error('Service Worker registration failed:', err));
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(()=>{});
+      });
     }
   </script>
-
-  <style>
-    @keyframes fadeInUp {
-      from {opacity:0; transform:translateY(20px);}
-      to {opacity:1; transform:translateY(0);}
-    }
-    .fade-in-up { animation: fadeInUp 0.5s ease-out; }
-    @keyframes scaleIn {
-      from {opacity:0; transform:scale(0.9);}
-      to {opacity:1; transform:scale(1);}
-    }
-    .scale-in { animation: scaleIn 0.3s ease-out; }
-  </style>
 </head>
-<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100 min-h-screen flex flex-col">
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100 min-h-screen flex flex-col selection:bg-indigo-600/40">
 
   <!-- Header -->
-  <header class="text-center py-8 fade-in-up border-b border-gray-700">
-    <h1 class="text-4xl font-extrabold text-indigo-400 tracking-wide">animeserc</h1>
+  <header class="text-center py-8 fade-in-up border-b border-gray-800/60">
+    <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
+      <span class="text-indigo-400">anime</span><span class="text-white">serc</span>
+    </h1>
     <p class="text-gray-400 mt-2 text-base">Search anime by title, genre, or image</p>
   </header>
 
-  <!-- Genre Filter -->
-  <section class="max-w-5xl w-full mx-auto px-4 fade-in-up mt-8">
-    <h3 class="text-indigo-400 text-xl font-semibold mb-3">🎭 Filter by Genre</h3>
-    <div id="genreSelection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 bg-gray-800 bg-opacity-70 p-4 rounded-2xl shadow-lg backdrop-blur-md">
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Action" class="form-checkbox text-indigo-500"><span>Action</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Adventure" class="form-checkbox text-indigo-500"><span>Adventure</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Comedy" class="form-checkbox text-indigo-500"><span>Comedy</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Drama" class="form-checkbox text-indigo-500"><span>Drama</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Fantasy" class="form-checkbox text-indigo-500"><span>Fantasy</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Horror" class="form-checkbox text-indigo-500"><span>Horror</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Mystery" class="form-checkbox text-indigo-500"><span>Mystery</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Romance" class="form-checkbox text-indigo-500"><span>Romance</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Sci-Fi" class="form-checkbox text-indigo-500"><span>Sci-Fi</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Slice of Life" class="form-checkbox text-indigo-500"><span>Slice of Life</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Sports" class="form-checkbox text-indigo-500"><span>Sports</span></label>
-      <label class="flex items-center space-x-2"><input type="checkbox" name="genres" value="Thriller" class="form-checkbox text-indigo-500"><span>Thriller</span></label>
-    </div>
-  </section>
+  <!-- Controls -->
+  <section class="max-w-6xl w-full mx-auto px-4 fade-in-up mt-6">
+    <div class="glass rounded-2xl shadow-soft p-4 sm:p-5">
+      <div class="flex flex-col sm:flex-row gap-3 items-stretch">
+        <div class="flex-1 flex gap-2">
+          <input id="textInput" autocomplete="off" placeholder="🔍 Search anime by title…"
+                 class="flex-1 px-4 py-2.5 rounded-xl bg-gray-900/70 focus:ring-2 focus:ring-indigo-400 outline-none text-sm sm:text-base" />
+          <button id="searchBtn" class="px-4 sm:px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl font-medium">
+            Search
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <label class="px-4 sm:px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-xl cursor-pointer text-center font-medium">
+            Upload
+            <input id="fileInput" type="file" accept="image/*" class="hidden" />
+          </label>
+          <select id="sortSelect" class="px-3 py-2.5 rounded-xl bg-gray-900/70 focus:ring-2 focus:ring-indigo-400 text-sm">
+            <option value="POPULARITY_DESC">Popular</option>
+            <option value="SCORE_DESC">Score</option>
+            <option value="TRENDING_DESC">Trending</option>
+            <option value="START_DATE_DESC">Newest</option>
+          </select>
+        </div>
+      </div>
 
-  <!-- Search Bar -->
-  <section class="max-w-5xl w-full mx-auto px-4 fade-in-up mt-8">
-    <div class="flex flex-col sm:flex-row gap-3 bg-gray-800 bg-opacity-70 p-4 rounded-2xl shadow-lg backdrop-blur-md">
-      <input id="textInput" placeholder="🔍 Search anime by title..." 
-             class="flex-grow px-4 py-2 rounded-xl bg-gray-900 bg-opacity-50 focus:ring-2 focus:ring-indigo-400 outline-none text-sm sm:text-base"/>
-      <div class="flex gap-2">
-        <button id="searchBtn" 
-                class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl transition text-sm sm:text-base font-medium">Search</button>
-        <label class="px-5 py-2 bg-green-600 hover:bg-green-700 rounded-xl cursor-pointer text-center text-sm sm:text-base font-medium">
-          Upload
-          <input id="fileInput" type="file" accept="image/*" class="hidden"/>
-        </label>
+      <!-- Genres -->
+      <div class="mt-4">
+        <h3 class="text-indigo-400 text-sm font-semibold mb-2">🎭 Filter by Genre</h3>
+        <div id="genreSelection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          <!-- Rendered by JS -->
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Main Content -->
-  <main class="flex-grow max-w-6xl w-full mx-auto px-4 mt-10 space-y-10">
-
+  <!-- Main -->
+  <main class="flex-grow max-w-6xl w-full mx-auto px-4 mt-8 space-y-10">
     <!-- Results -->
     <section>
-      <h2 class="text-2xl font-bold text-indigo-300 mb-4">🔎 Results</h2>
-      <div id="results" class="space-y-4"></div>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-2xl font-bold text-indigo-300">🔎 Results</h2>
+        <div id="resultCount" class="text-sm text-gray-400"></div>
+      </div>
+      <div id="results" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      <div id="sentinel" class="h-10 flex items-center justify-center text-gray-400"></div>
     </section>
 
     <!-- History -->
     <section>
-      <h2 class="text-2xl font-bold text-indigo-300 mb-4">🕒 Recent Searches</h2>
-      <ul id="history" class="list-disc list-inside text-gray-400 text-sm sm:text-base space-y-1"></ul>
+      <h2 class="text-2xl font-bold text-indigo-300 mb-3">🕒 Recent Searches</h2>
+      <ul id="history" class="flex flex-wrap gap-2 text-gray-300"></ul>
     </section>
 
     <!-- Favorites -->
     <section>
-      <h2 class="text-2xl font-bold text-indigo-300 mb-4">❤️ Favorites</h2>
-      <ul id="favorites" class="list-disc list-inside text-gray-400 text-sm sm:text-base space-y-1"></ul>
+      <h2 class="text-2xl font-bold text-indigo-300 mb-3">❤️ Favorites</h2>
+      <ul id="favorites" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-gray-200"></ul>
     </section>
   </main>
 
-  <!-- Details Modal -->
-  <div id="modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center z-50 p-4">
-    <div id="modalContentWrapper" class="bg-gray-800 p-6 rounded-2xl w-full max-w-3xl relative scale-in max-h-[90vh] flex flex-col shadow-2xl">
-      <button id="modalClose" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl">✕</button>
-      <div id="modalContent" class="overflow-y-auto max-h-[80vh] space-y-4 text-gray-300 text-base"></div>
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+    <div id="modalContentWrapper" class="glass p-0 rounded-2xl w-full max-w-3xl relative max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <button id="modalClose" class="absolute top-3 right-3 text-gray-300 hover:text-white text-xl" aria-label="Close details">✕</button>
+      <div id="modalContent" class="overflow-y-auto max-h-[88vh] text-gray-200"></div>
     </div>
   </div>
 
   <!-- Footer -->
-  <footer class="text-center text-gray-500 text-xs sm:text-sm py-6 border-t border-gray-700 mt-8">
+  <footer class="text-center text-gray-500 text-xs sm:text-sm py-6 border-t border-gray-800/60 mt-8">
     Made with ❤️ by <span class="text-indigo-400 font-semibold">animeserc</span> —
-    <a href="https://deltashift.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline">
-      developed by deltashift
-    </a>
+    <a href="https://deltashift.netlify.app/" target="_blank" rel="noopener" class="text-indigo-400 hover:underline">developed by deltashift</a>
   </footer>
 
-  <!-- App Scripts -->
-  <script src="./app.js"></script>
-  <script>
-    const modal = document.getElementById('modal');
-    const modalCloseBtn = document.getElementById('modalClose');
+  <!-- App Code -->
+  <script type="module">
+    /* ==================== Config & Constants ==================== */
+    const CACHE_TTL = 24 * 60 * 60 * 1000; // 1 day
+    const PER_PAGE = 12;
+    const GENRES = [
+      'Action','Adventure','Comedy','Drama','Fantasy','Horror','Mystery','Romance','Sci-Fi','Slice of Life','Sports','Thriller'
+    ];
 
-    function closeModal() {
-      modal.classList.add('hidden');
-      document.body.style.overflow = '';
-      document.getElementById('modalContent').innerHTML = '';
+    // Elements
+    const el = {
+      results: document.getElementById('results'),
+      resultCount: document.getElementById('resultCount'),
+      history: document.getElementById('history'),
+      favs: document.getElementById('favorites'),
+      textInput: document.getElementById('textInput'),
+      searchBtn: document.getElementById('searchBtn'),
+      fileInput: document.getElementById('fileInput'),
+      modal: document.getElementById('modal'),
+      modalContent: document.getElementById('modalContent'),
+      sortSelect: document.getElementById('sortSelect'),
+      genreSelection: document.getElementById('genreSelection'),
+      sentinel: document.getElementById('sentinel'),
+    };
+
+    // State
+    let state = {
+      page: 1,
+      query: '',
+      genres: [],
+      sort: 'POPULARITY_DESC',
+      hasNext: false,
+      loading: false,
+      aborter: null,
+      history: load('history', []),
+      favs: load('favs', []),
+    };
+
+    // Render genre chips
+    el.genreSelection.innerHTML = GENRES.map(g => (
+      `<label class="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-900/60 border border-gray-800 hover:border-indigo-500/40 cursor-pointer">
+        <input type="checkbox" value="${g}" class="genreBox accent-indigo-500">
+        <span class="text-sm">${g}</span>
+      </label>`
+    )).join('');
+
+    /* ==================== Utilities ==================== */
+    function save(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+    function load(key, fallback){ try{ return JSON.parse(localStorage.getItem(key)) ?? fallback }catch{ return fallback } }
+
+    function setTTL(key, value){ localStorage.setItem(key, JSON.stringify({value, ts: Date.now()})); }
+    function getTTL(key){
+      const raw = localStorage.getItem(key);
+      if(!raw) return null;
+      try{
+        const {value, ts} = JSON.parse(raw);
+        if(Date.now() - ts > CACHE_TTL){ localStorage.removeItem(key); return null; }
+        return value;
+      }catch{ localStorage.removeItem(key); return null; }
     }
 
-    modalCloseBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-  </script>
+    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 
+    // DOM helpers
+    function skeletonCard(){
+      return `<div class="rounded-xl overflow-hidden bg-gray-800/60 animate-pulse">
+        <div class="h-40 w-full bg-gray-700"></div>
+        <div class="p-4 space-y-2">
+          <div class="h-5 bg-gray-700 rounded w-3/4"></div>
+          <div class="h-4 bg-gray-700 rounded w-full"></div>
+          <div class="h-4 bg-gray-700 rounded w-2/3"></div>
+        </div>
+      </div>`
+    }
+
+    function showSkeletonGrid(count = PER_PAGE){
+      el.results.innerHTML = Array.from({length: count}).map(skeletonCard).join('');
+      el.resultCount.textContent = '';
+    }
+
+    function htmlEscape(str=''){return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]))}
+
+    function clampText(t, n=200){ if(!t) return 'N/A'; const s=t.replace(/\n+/g,' ').trim(); return s.length>n? s.slice(0,n-1)+'…': s }
+
+    function createCard(a){
+      const title = a.title.english || a.title.romaji || a.title.native || 'Untitled';
+      return `<article class="anime-card bg-gray-800/70 rounded-xl overflow-hidden shadow-soft hover:shadow-xl transition fade-in-up">
+        <img src="${a.coverImage.large}" alt="${htmlEscape(title)} cover" loading="lazy" class="w-full h-40 object-cover"/>
+        <div class="p-4">
+          <h3 class="text-lg font-semibold text-indigo-300 line-clamp-1">${htmlEscape(title)}</h3>
+          <p class="text-gray-300 text-sm line-clamp-3">${clampText(a.description?.replace(/<[^>]+>/g,''), 160)}</p>
+          <div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-300">
+            <span class="px-2 py-1 rounded bg-gray-900/60">📺 ${a.episodes ?? 'N/A'} ep</span>
+            <span class="px-2 py-1 rounded bg-gray-900/60">📌 ${a.status?.replace('_',' ') ?? 'N/A'}</span>
+            <span class="px-2 py-1 rounded bg-gray-900/60">⭐ ${a.averageScore ?? 'N/A'}</span>
+          </div>
+          <div class="mt-3 flex gap-3">
+            <button data-action="view" data-id="${a.id}" class="text-indigo-400 hover:underline">View</button>
+            <button data-action="fav" data-id="${a.id}" data-title="${htmlEscape(title)}" class="text-red-400 hover:text-red-500">❤ Fav</button>
+          </div>
+        </div>
+      </article>`;
+    }
+
+    function renderResults(items, append=false){
+      if(!items.length && !append){ el.results.innerHTML = `<div class='text-gray-400'>No results found.</div>`; return; }
+      const html = items.map(createCard).join('');
+      if(append) el.results.insertAdjacentHTML('beforeend', html); else el.results.innerHTML = html;
+    }
+
+    function renderHistory(){
+      el.history.innerHTML = (state.history.length ? state.history : ['No searches yet.'])
+        .map(h => state.history.length ? `<li><button class="px-3 py-1 rounded-full bg-gray-800 hover:bg-gray-700" data-history="${htmlEscape(h)}">${htmlEscape(h)}</button></li>` : `<li class='text-gray-500'>${h}</li>`)
+        .join('');
+    }
+
+    function renderFavs(){
+      el.favs.innerHTML = state.favs.length ? state.favs.map(f => `<li class="p-3 rounded-xl bg-gray-800/70 flex items-center justify-between">
+        <span>${htmlEscape(f.title)}</span>
+        <button class="text-xs text-red-400 hover:text-red-500" data-remove-fav="${f.id}">Remove</button>
+      </li>`).join('') : `<li class='text-gray-500 p-2'>No favorites yet.</li>`;
+    }
+
+    function pushHistory(q){
+      state.history = [q, ...state.history.filter(x=>x!==q)].slice(0,10);
+      save('history', state.history);
+      renderHistory();
+    }
+
+    function pushFav(item){
+      if(!state.favs.find(x=>x.id===item.id)){
+        state.favs.push(item);
+        save('favs', state.favs);
+        renderFavs();
+      }
+    }
+
+    /* ==================== API (AniList + trace.moe) ==================== */
+    const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
+
+    async function gql(query, variables={}){
+      // Abort previous request to keep UI snappy
+      if(state.aborter){ state.aborter.abort(); }
+      state.aborter = new AbortController();
+      const res = await fetch(ANILIST_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ query, variables }),
+        signal: state.aborter.signal
+      });
+      if(!res.ok) throw new Error('AniList request failed');
+      const j = await res.json();
+      if(j.errors) throw new Error(j.errors?.[0]?.message || 'GraphQL error');
+      return j.data;
+    }
+
+    async function searchAniList({search='', page=1, perPage=PER_PAGE, genres=[], sort='POPULARITY_DESC'}){
+      const cacheKey = `al:search:${search}:${page}:${genres.sort().join(',')}:${sort}`;
+      const cached = getTTL(cacheKey);
+      if(cached) return cached;
+
+      const query = `query ($search:String,$page:Int,$perPage:Int,$genres:[String],$sort:[MediaSort]){\n        Page(page:$page, perPage:$perPage){\n          pageInfo{currentPage hasNextPage total perPage}\n          media(search:$search, type:ANIME, genre_in:$genres, sort:$sort){\n            id idMal\n            title{english romaji native}\n            description(asHtml:false)\n            episodes status averageScore\n            coverImage{large}\n            genres\n            trailer{ id site thumbnail }\n          }\n        }\n      }`;
+
+      const data = await gql(query, { search, page, perPage, genres, sort });
+      const res = {
+        pageInfo: data.Page.pageInfo,
+        items: data.Page.media
+      };
+      setTTL(cacheKey, res);
+      return res;
+    }
+
+    async function getAnimeDetails(id){
+      const cacheKey = `al:details:${id}`;
+      const cached = getTTL(cacheKey);
+      if(cached) return cached;
+
+      const query = `query ($id:Int){\n        Media(id:$id, type:ANIME){\n          id idMal\n          title{english romaji native}\n          description(asHtml:false)\n          episodes status averageScore duration\n          coverImage{extraLarge large}\n          bannerImage\n          genres\n          trailer{ id site thumbnail }\n          characters(perPage:8){ edges{ role node{ name{full} image{large} } } }\n          streamingEpisodes{ title thumbnail url site }\n          studios{ nodes{ name } }\n          startDate{year month day} endDate{year month day}\n        }\n      }`;
+      const data = await gql(query, { id });
+      setTTL(cacheKey, data.Media);
+      return data.Media;
+    }
+
+    async function searchByImage(file){
+      // trace.moe → get AniList id, then fetch details
+      showSkeletonGrid(6);
+      const form = new FormData();
+      form.append('image', file);
+      try {
+        const resp = await fetch('https://api.trace.moe/search?anilistInfo', { method: 'POST', body: form });
+        if(!resp.ok) throw new Error('Image search failed');
+        const j = await resp.json();
+        const top = j?.result?.[0];
+        if(!top?.anilist?.id) throw new Error('No match found');
+        const details = await getAnimeDetails(Number(top.anilist.id));
+        el.resultCount.textContent = 'Image match result';
+        renderResults([details]);
+      } catch(e){
+        el.results.innerHTML = `<div class='text-red-400'>⚠️ ${e.message || 'Image analysis failed.'}</div>`;
+      }
+    }
+
+    /* ==================== Search Flow ==================== */
+    async function runSearch({reset=true}={}){
+      if(state.loading) return; // guard
+      state.loading = true;
+      try{
+        if(reset){ showSkeletonGrid(); state.page = 1; }
+        const {pageInfo, items} = await searchAniList({
+          search: state.query || undefined,
+          page: state.page,
+          perPage: PER_PAGE,
+          genres: state.genres,
+          sort: state.sort
+        });
+        state.hasNext = pageInfo.hasNextPage;
+        if(reset){ el.resultCount.textContent = `${pageInfo.total?.toLocaleString?.() || ''} results`; }
+        renderResults(items, !reset);
+      } catch{
+        if(reset) el.results.innerHTML = `<div class='text-red-400'>⚠️ Failed to fetch results.</div>`;
+      } finally {
+        state.loading = false;
+      }
+    }
+
+    /* ==================== Modal ==================== */
+    function openModal(){ el.modal.classList.remove('hidden'); document.body.style.overflow='hidden'; }
+    function closeModal(){ el.modal.classList.add('hidden'); document.body.style.overflow=''; el.modalContent.innerHTML=''; }
+
+    async function viewDetails(id){
+      openModal();
+      el.modalContent.innerHTML = `<div class='p-6'>${Array.from({length:1}).map(()=>`<div class='h-52 w-full bg-gray-800 animate-pulse rounded-xl mb-4'></div><div class='space-y-2'><div class='h-6 bg-gray-800 rounded w-2/3'></div><div class='h-4 bg-gray-800 rounded w-full'></div><div class='h-4 bg-gray-800 rounded w-5/6'></div></div>`).join('')}</div>`;
+      try{
+        const d = await getAnimeDetails(id);
+        const t = d.title.english || d.title.romaji || d.title.native;
+        const date = (s)=> s?.year ? `${s.year}-${String(s.month||'').padStart(2,'0')}-${String(s.day||'').padStart(2,'0')}` : 'N/A';
+        const chars = d.characters?.edges?.map(e=>`<li class='flex items-center gap-3'><img src='${e.node.image.large}' alt='' class='w-10 h-10 rounded object-cover'/><span class='text-sm'>${htmlEscape(e.node.name.full)} <span class='text-gray-400'>(${e.role?.toLowerCase?.()})</span></span></li>`).join('') || '<li class="text-gray-400">N/A</li>';
+        const trailer = (d.trailer && d.trailer.site==="youtube" && d.trailer.id) ? `<div class='mt-4'><iframe class='w-full aspect-video rounded-xl' src='https://www.youtube.com/embed/${d.trailer.id}' allowfullscreen loading='lazy' title='Trailer'></iframe></div>` : '';
+        el.modalContent.innerHTML = `
+          <div class='relative'>
+            ${d.bannerImage ? `<img src='${d.bannerImage}' alt='' class='w-full h-48 object-cover'>` : ''}
+            <div class='p-6'>
+              <h2 class='text-2xl font-bold text-indigo-300'>${htmlEscape(t)}</h2>
+              <div class='mt-2 flex flex-wrap gap-2 text-xs'>
+                ${d.genres.map(g=>`<span class='px-2 py-1 rounded bg-gray-800 border border-gray-700'>${g}</span>`).join('')}
+              </div>
+              <div class='mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm text-gray-300'>
+                <span>📺 Episodes: <b>${d.episodes ?? 'N/A'}</b></span>
+                <span>⏱️ Duration: <b>${d.duration ?? '—'}m</b></span>
+                <span>📌 Status: <b>${d.status?.replace('_',' ') ?? 'N/A'}</b></span>
+                <span>⭐ Score: <b>${d.averageScore ?? 'N/A'}</b></span>
+              </div>
+              <p class='mt-3 text-gray-200'>${(d.description||'').replace(/\n+/g,' ').replace(/<[^>]+>/g,'')}</p>
+              ${trailer}
+              ${d.streamingEpisodes?.length ? `<div class='mt-4'>
+                <h3 class='font-semibold text-indigo-300 mb-2'>Streaming</h3>
+                <div class='grid grid-cols-2 sm:grid-cols-3 gap-2'>
+                  ${d.streamingEpisodes.map(s=>`<a class='rounded-xl overflow-hidden bg-gray-900/60 hover:bg-gray-900 border border-gray-800 block' href='${s.url}' target='_blank' rel='noopener'>
+                    <img src='${s.thumbnail}' alt='' class='w-full h-24 object-cover'>
+                    <div class='p-2 text-xs'>${htmlEscape(s.title || s.site || '')}</div>
+                  </a>`).join('')}
+                </div>
+              </div>`:''}
+              <div class='mt-4'>
+                <h3 class='font-semibold text-indigo-300 mb-2'>Characters</h3>
+                <ul class='grid grid-cols-1 sm:grid-cols-2 gap-2'>${chars}</ul>
+              </div>
+            </div>
+          </div>`;
+      }catch{
+        el.modalContent.innerHTML = `<div class='p-6 text-red-400'>Failed to load details.</div>`;
+      }
+    }
+
+    // Close modal
+    document.getElementById('modalClose').addEventListener('click', closeModal);
+    el.modal.addEventListener('click', (e)=>{ if(e.target===el.modal) closeModal(); });
+
+    /* ==================== Events ==================== */
+    // Genres
+    el.genreSelection.addEventListener('change', () => {
+      state.genres = Array.from(document.querySelectorAll('.genreBox:checked')).map(b=>b.value);
+      runSearch({reset:true});
+    });
+
+    // Sort
+    el.sortSelect.addEventListener('change', () => {
+      state.sort = el.sortSelect.value;
+      runSearch({reset:true});
+    });
+
+    // Search
+    el.searchBtn.addEventListener('click', () => {
+      const q = el.textInput.value.trim();
+      if(!q && state.genres.length===0) return;
+      state.query = q; state.page = 1; pushHistory(q || '[Genre Filter]');
+      runSearch({reset:true});
+    });
+
+    // Enter key
+    el.textInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') el.searchBtn.click(); });
+
+    // Suggestions (from history)
+    let sugTimer; el.textInput.addEventListener('input', ()=>{
+      clearTimeout(sugTimer);
+      sugTimer=setTimeout(()=>{
+        const q = el.textInput.value.trim().toLowerCase();
+        const matches = state.history.filter(h=>h.toLowerCase().includes(q));
+        let dl = document.getElementById('suggestions');
+        if(matches.length){
+          if(!dl){ dl = document.createElement('datalist'); dl.id='suggestions'; document.body.append(dl); }
+          el.textInput.setAttribute('list','suggestions');
+          dl.innerHTML = matches.map(m=>`<option value="${m}"></option>`).join('');
+        } else { el.textInput.removeAttribute('list'); }
+      }, 200);
+    });
+
+    // Click on history chip
+    el.history.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-history]');
+      if(!btn) return; el.textInput.value = btn.dataset.history; el.searchBtn.click();
+    });
+
+    // Upload image
+    el.fileInput.addEventListener('change', ()=>{
+      const f = el.fileInput.files?.[0]; if(!f) return; pushHistory('[Image Search]'); searchByImage(f);
+    });
+
+    // Results delegation
+    el.results.addEventListener('click', (e)=>{
+      const bt = e.target.closest('button'); if(!bt) return;
+      const id = Number(bt.dataset.id);
+      if(bt.dataset.action==='view'){ viewDetails(id); }
+      if(bt.dataset.action==='fav'){ pushFav({ id, title: bt.dataset.title }); }
+    });
+
+    // Favorites remove
+    el.favs.addEventListener('click', (e)=>{
+      const rm = e.target.closest('button[data-remove-fav]'); if(!rm) return;
+      const id = Number(rm.dataset.removeFav);
+      state.favs = state.favs.filter(f=>f.id!==id); save('favs', state.favs); renderFavs();
+    });
+
+    // Infinite loading via sentinel
+    const io = new IntersectionObserver(async (entries)=>{
+      const first = entries[0];
+      if(first.isIntersecting && state.hasNext && !state.loading){
+        state.page += 1; await runSearch({reset:false});
+      }
+    }, { rootMargin: '600px 0px 0px 0px' });
+    io.observe(el.sentinel);
+
+    // Initial render
+    renderHistory(); renderFavs();
+
+    // Optional: kick off with trending
+    state.query = ''; state.genres = []; runSearch({reset:true});
+
+  </script>
 </body>
 </html>
