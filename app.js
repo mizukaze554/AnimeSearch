@@ -1,7 +1,7 @@
 /* ===== Config ===== */
 const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 1 day
 
-// Map genre names to Jikan API genre IDs
+// Genre name → Jikan API genre IDs
 const genreNameToId = {
   "Action": 1,
   "Adventure": 2,
@@ -17,68 +17,79 @@ const genreNameToId = {
   "Thriller": 41,
 };
 
-/* ===== Elements (cached) ===== */
-const resultsEl = document.getElementById('results');
-const historyEl = document.getElementById('history');
-const favEl = document.getElementById('favorites');
-const textInput = document.getElementById('textInput');
-const searchBtn = document.getElementById('searchBtn');
-const fileInput = document.getElementById('fileInput');
-const modal = document.getElementById('modal');
-const modalContent = document.getElementById('modalContent');
-const modalCloseBtn = document.getElementById('modalClose');
+/* ===== Elements ===== */
+const resultsEl   = document.getElementById('results');
+const historyEl   = document.getElementById('history');
+const favEl       = document.getElementById('favorites');
+const textInput   = document.getElementById('textInput');
+const searchBtn   = document.getElementById('searchBtn');
+const fileInput   = document.getElementById('fileInput');
+const modal       = document.getElementById('modal');
+const modalContent= document.getElementById('modalContent');
 
 /* ===== State ===== */
 let history = JSON.parse(getCookie('history') || '[]');
-let favs = JSON.parse(getCookie('favs') || '[]');
-let page = 1;
+let favs    = JSON.parse(getCookie('favs') || '[]');
+let page    = 1;
 let currentQuery = "";
+let isLoading = false;
 
+/* ===== Init ===== */
 renderHistory();
 renderFavs();
 
 /* ===== Event Listeners ===== */
-modalCloseBtn.onclick = () => modal.classList.add('hidden');
+searchBtn.onclick = startSearch;
+textInput.onkeydown = e => { if (e.key === "Enter") startSearch(); };
 
 let debounceTimer;
 textInput.addEventListener('input', () => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     const q = textInput.value.trim();
-    if (q.length >= 3) showSuggestions(q);
+    if (q.length >= 2) showSuggestions(q);
     else textInput.removeAttribute('list');
-  }, 300);
+  }, 250);
 });
 
-searchBtn.onclick = startSearch;
-textInput.onkeydown = e => { if (e.key === "Enter") startSearch(); };
 fileInput.onchange = () => {
-  const f = fileInput.files?.[0];
-  if (!f) return;
-  pushHistory('[IMAGE]');
-  searchByImage(f);
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  pushHistory('[Image Search]');
+  searchByImage(file);
 };
 
-// Event delegation for results buttons (View, Fav)
+// Handle clicks inside results
 resultsEl.addEventListener('click', e => {
-  const viewBtn = e.target.closest('button');
-  if (!viewBtn) return;
-  if (viewBtn.textContent === 'View') {
-    const malId = viewBtn.dataset.malid;
-    if (malId) viewDetails(Number(malId));
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  const malId = btn.dataset.malid;
+  if (!malId) return;
+
+  if (btn.dataset.action === "view") {
+    viewDetails(Number(malId));
   }
-  if (viewBtn.textContent.includes('❤')) {
-    const malId = viewBtn.dataset.malid;
-    const title = viewBtn.closest('div')?.querySelector('h3')?.innerText;
-    if (malId && title) pushFav({ mal_id: Number(malId), title });
+  if (btn.dataset.action === "fav") {
+    const title = btn.closest('.anime-card')?.querySelector('h3')?.innerText;
+    if (title) pushFav({ mal_id: Number(malId), title });
   }
 });
 
-/* ===== Functions ===== */
+// Infinite Scroll
+window.addEventListener('scroll', () => {
+  if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) {
+    if (currentQuery && !isLoading) {
+      page++;
+      const genres = getSelectedGenres();
+      searchByText(currentQuery, page, genres, true);
+    }
+  }
+});
 
+/* ===== Core Functions ===== */
 function getSelectedGenres() {
-  const checkedBoxes = document.querySelectorAll('#genreSelection input[name="genres"]:checked');
-  return Array.from(checkedBoxes)
+  return Array.from(document.querySelectorAll('#genreSelection input[name="genres"]:checked'))
     .map(box => genreNameToId[box.value])
     .filter(Boolean);
 }
@@ -89,32 +100,28 @@ function startSearch() {
   if (!q && genres.length === 0) return; // prevent empty search
   currentQuery = q;
   page = 1;
-  pushHistory(q || '[Filtered Search]');
-  searchByText(q, page, genres);
+  pushHistory(q || '[Genre Filter]');
+  searchByText(q, page, genres, false);
 }
 
-async function searchByText(q, p = 1, genres = []) {
-  // Create a cache key that includes genres
-  const cacheKey = `${q}-page${p}-genres${genres.sort().join(',')}`;
+async function searchByText(query, p = 1, genres = [], append = false) {
+  const cacheKey = `${query}-page${p}-genres${genres.sort().join(',')}`;
   const cached = getCache(cacheKey);
-  if (cached) {
-    showResults(cached, p > 1);
-    return;
-  }
+  if (cached) return showResults(cached, append);
 
-  if (p === 1) resultsEl.innerHTML = '<p class="animate-pulse text-gray-400">Searching…</p>';
+  if (!append) showLoading("Searching…");
 
+  isLoading = true;
   try {
-    // Build the genres param for API (comma-separated genre IDs)
     const genreParam = genres.length ? `&genres=${genres.join(',')}` : '';
-    const queryParam = q ? `&q=${encodeURIComponent(q)}` : '';
-    const url = `https://api.jikan.moe/v4/anime?page=${p}&limit=10${queryParam}${genreParam}`;
+    const queryParam = query ? `&q=${encodeURIComponent(query)}` : '';
+    const url = `https://api.jikan.moe/v4/anime?page=${p}&limit=12${queryParam}${genreParam}`;
 
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error("Failed fetching search results");
-    const j = await resp.json();
+    if (!resp.ok) throw new Error("Failed to fetch");
 
-    const list = j.data.map(d => ({
+    const data = await resp.json();
+    const list = data.data.map(d => ({
       mal_id: d.mal_id,
       title: d.title_english ?? d.title,
       synopsis: d.synopsis,
@@ -123,63 +130,68 @@ async function searchByText(q, p = 1, genres = []) {
       score: d.score,
       image_url: d.images?.jpg?.large_image_url ?? ''
     }));
+
     setCache(cacheKey, list);
-    showResults(list, p > 1);
-  } catch {
-    if (p === 1) resultsEl.innerHTML = '<p class="text-red-500">Error fetching results.</p>';
+    showResults(list, append);
+  } catch (err) {
+    if (!append) showError("⚠️ Failed to fetch results.");
+  } finally {
+    isLoading = false;
   }
 }
 
 async function searchByImage(file) {
-  resultsEl.innerHTML = '<p class="animate-pulse text-gray-400">Analyzing image…</p>';
+  showLoading("Analyzing image…");
   const form = new FormData();
   form.append('image', file);
+
   try {
-    const resp = await fetch('https://api.trace.moe/search?anilistInfo', { method: 'POST', body: form });
+    const resp = await fetch('https://api.trace.moe/search?anilistInfo', {
+      method: 'POST', body: form
+    });
     if (!resp.ok) throw new Error("Image search failed");
     const j = await resp.json();
-    if (!j.result?.length) {
-      resultsEl.innerHTML = '<p class="text-red-500">No match found.</p>';
-      return;
-    }
+    if (!j.result?.length) return showError("❌ No match found.");
     searchByText(j.result[0].anilist.id.toString());
   } catch {
-    resultsEl.innerHTML = '<p class="text-red-500">Image analysis failed.</p>';
+    showError("⚠️ Image analysis failed.");
   }
 }
 
 function showResults(items, append = false) {
-  if (!items.length && !append) {
-    resultsEl.innerHTML = '<p class="text-gray-400">No results found.</p>';
-    return;
-  }
+  if (!items.length && !append) return showError("No results found.");
+
   const html = items.map(a => `
-    <div class="bg-gray-800 rounded-lg p-4 mb-4 flex gap-4 fade-in-up">
+    <div class="anime-card bg-gray-800 rounded-lg p-4 flex gap-4 fade-in-up shadow hover:shadow-lg transition">
       <img src="${a.image_url}" loading="lazy" alt="cover" class="w-24 h-32 object-cover rounded shadow-md"/>
       <div class="flex-grow">
-        <h3 class="text-xl text-indigo-400">${a.title}</h3>
-        <p class="text-gray-300">${a.synopsis?.substring(0, 150) ?? 'N/A'}…</p>
-        <div class="mt-2 space-x-2 text-gray-400 text-sm">
-          <span>Ep: ${a.episodes ?? 'N/A'}</span><span>Status: ${a.status ?? 'N/A'}</span><span>Score: ${a.score ?? 'N/A'}</span>
+        <h3 class="text-lg font-semibold text-indigo-300">${a.title}</h3>
+        <p class="text-gray-300 text-sm">${a.synopsis?.substring(0, 150) ?? 'N/A'}…</p>
+        <div class="mt-2 space-x-3 text-gray-400 text-xs">
+          <span>📺 Ep: ${a.episodes ?? 'N/A'}</span>
+          <span>📌 ${a.status ?? 'N/A'}</span>
+          <span>⭐ ${a.score ?? 'N/A'}</span>
         </div>
-        <button data-malid="${a.mal_id}" class="mt-2 text-indigo-300 cursor-pointer">View</button>
-        <button data-malid="${a.mal_id}" class="ml-4 text-red-400 hover:text-red-600 cursor-pointer">❤ Fav</button>
+        <div class="mt-3 space-x-3">
+          <button data-action="view" data-malid="${a.mal_id}" class="text-indigo-400 hover:underline">View</button>
+          <button data-action="fav" data-malid="${a.mal_id}" class="text-red-400 hover:text-red-500">❤ Fav</button>
+        </div>
       </div>
-    </div>`).join('');
+    </div>
+  `).join('');
+
   if (append) resultsEl.insertAdjacentHTML('beforeend', html);
   else resultsEl.innerHTML = html;
 }
 
-window.addEventListener('scroll', () => {
-  if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) {
-    if (currentQuery) {
-      page++;
-      const genres = getSelectedGenres();
-      searchByText(currentQuery, page, genres);
-    }
-  }
-});
+function showLoading(msg) {
+  resultsEl.innerHTML = `<div class="text-gray-400 animate-pulse">${msg}</div>`;
+}
+function showError(msg) {
+  resultsEl.innerHTML = `<div class="text-red-400">${msg}</div>`;
+}
 
+/* ===== Favorites & History ===== */
 function pushFav(a) {
   if (!favs.find(x => x.mal_id === a.mal_id)) {
     favs.push(a);
@@ -187,9 +199,8 @@ function pushFav(a) {
     renderFavs();
   }
 }
-
 function renderFavs() {
-  favEl.innerHTML = favs.map(a => `<li>${a.title}</li>`).join('');
+  favEl.innerHTML = favs.map(a => `<li>${a.title}</li>`).join('') || "<li class='text-gray-500'>No favorites yet.</li>";
 }
 
 function pushHistory(q) {
@@ -197,52 +208,11 @@ function pushHistory(q) {
   setCookie('history', JSON.stringify(history), 365);
   renderHistory();
 }
-
 function renderHistory() {
-  historyEl.innerHTML = history.map(h => `<li>${h}</li>`).join('');
+  historyEl.innerHTML = history.map(h => `<li>${h}</li>`).join('') || "<li class='text-gray-500'>No searches yet.</li>";
 }
 
-window.viewDetails = async function(mal_id) {
-  const cacheKey = `details-${mal_id}`;
-  let data = getCache(cacheKey);
-  if (!data) {
-    try {
-      data = await fetchDetails(mal_id);
-      setCache(cacheKey, data);
-    } catch {
-      modalContent.innerHTML = '<p class="text-red-500">Failed to load details.</p>';
-      modal.classList.remove('hidden');
-      return;
-    }
-  }
-  const synopsis = await translateText(data.synopsis ?? '');
-  const genres = data.genres?.map(g => g.name).join(', ') ?? 'N/A';
-  const characters = (data.characters?.data ?? []).slice(0, 5).map(c => c.character.name).join(', ') || 'N/A';
-
-  modalContent.innerHTML = `
-    <h2 class="text-2xl text-indigo-400">${data.title_english ?? data.title}</h2>
-    <img src="${data.images?.jpg?.large_image_url ?? ''}" class="w-full h-64 object-cover rounded"/>
-    <p><strong>Genres:</strong> ${genres}</p>
-    <p><strong>Characters:</strong> ${characters}</p>
-    <p><strong>Episodes:</strong> ${data.episodes ?? 'N/A'}</p>
-    <p><strong>Status:</strong> ${data.status ?? 'N/A'}</p>
-    <p><strong>Score:</strong> ${data.score ?? 'N/A'}</p>
-    <p><strong>Synopsis:</strong> ${synopsis}</p>
-    ${data.trailer?.youtube_id ? `
-      <div id="trailerContainer" class="mt-4">
-        <iframe
-          class="w-full aspect-video rounded"
-          src="https://www.youtube.com/embed/${data.trailer.youtube_id}"
-          allowfullscreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          loading="lazy"
-          title="Trailer">
-        </iframe>
-      </div>` : ''}
-  `;
-  modal.classList.remove('hidden');
-};
-
+/* ===== Suggestions ===== */
 function showSuggestions(q) {
   const matches = history.filter(h => h.toLowerCase().includes(q.toLowerCase()));
   if (matches.length) {
@@ -259,6 +229,51 @@ function showSuggestions(q) {
   }
 }
 
+/* ===== Details Modal ===== */
+window.viewDetails = async function(mal_id) {
+  const cacheKey = `details-${mal_id}`;
+  let data = getCache(cacheKey);
+
+  if (!data) {
+    try {
+      data = await fetchDetails(mal_id);
+      setCache(cacheKey, data);
+    } catch {
+      modalContent.innerHTML = '<p class="text-red-500">Failed to load details.</p>';
+      modal.classList.remove('hidden');
+      return;
+    }
+  }
+
+  const synopsis = await translateText(data.synopsis ?? '');
+  const genres = data.genres?.map(g => g.name).join(', ') ?? 'N/A';
+  const characters = (data.characters?.data ?? []).slice(0, 5).map(c => c.character.name).join(', ') || 'N/A';
+
+  modalContent.innerHTML = `
+    <h2 class="text-2xl text-indigo-400 font-bold">${data.title_english ?? data.title}</h2>
+    <img src="${data.images?.jpg?.large_image_url ?? ''}" class="w-full h-64 object-cover rounded"/>
+    <p><strong>Genres:</strong> ${genres}</p>
+    <p><strong>Characters:</strong> ${characters}</p>
+    <p><strong>Episodes:</strong> ${data.episodes ?? 'N/A'}</p>
+    <p><strong>Status:</strong> ${data.status ?? 'N/A'}</p>
+    <p><strong>Score:</strong> ${data.score ?? 'N/A'}</p>
+    <p class="text-gray-300"><strong>Synopsis:</strong> ${synopsis}</p>
+    ${data.trailer?.youtube_id ? `
+      <div class="mt-4">
+        <iframe
+          class="w-full aspect-video rounded"
+          src="https://www.youtube.com/embed/${data.trailer.youtube_id}"
+          allowfullscreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          loading="lazy"
+          title="Trailer">
+        </iframe>
+      </div>` : ''}
+  `;
+  modal.classList.remove('hidden');
+};
+
+/* ===== API Helpers ===== */
 async function fetchDetails(mal_id) {
   const resp = await fetch(`https://api.jikan.moe/v4/anime/${mal_id}/full`);
   if (!resp.ok) throw new Error("Failed to fetch anime details");
@@ -300,10 +315,10 @@ function getCache(key) {
 }
 
 /* ===== Cookies ===== */
-function setCookie(n, v, days) {
-  document.cookie = `${n}=${encodeURIComponent(v)};max-age=${days * 86400};path=/`;
+function setCookie(name, value, days) {
+  document.cookie = `${name}=${encodeURIComponent(value)};max-age=${days * 86400};path=/`;
 }
-function getCookie(n) {
-  const m = document.cookie.match('(?:^|; )' + n + '=([^;]*)');
+function getCookie(name) {
+  const m = document.cookie.match('(?:^|; )' + name + '=([^;]*)');
   return m ? decodeURIComponent(m[1]) : '';
 }
